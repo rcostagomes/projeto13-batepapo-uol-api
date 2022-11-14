@@ -9,6 +9,18 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
-app.use(express.json())
+app.use(express.json());
 
-app.listen(5000, ()=> {console.log("Running in ort 5000")})
+app.post("/participants", (req, res) => {});
+
+app.get("/participantes", (req, res) => {});
+
+app.post("/messages", (req, res) => {});
+
+app.get("/messages", (req, res) => {});
+
+app.post("/status", (req, res) => {});
+
+app.listen(5000, () => {
+  console.log("Server running in port 5000");
+});
