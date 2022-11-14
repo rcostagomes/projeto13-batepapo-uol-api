@@ -155,13 +155,11 @@ app.post("/status", async (req, res) => {
 
 setInterval(async () => {
   const tempo = Date.now() - 10 * 1000;
-  console.log(tempo);
   try {
     const inativos = await db
       .collection("participants")
       .find({ lastStatus: { $lte: tempo } })
       .toArray();
-    console.log(inativos);
     if (inativos.length > 0) {
       const msgInativo = inativos.map((i) => {
         return {
