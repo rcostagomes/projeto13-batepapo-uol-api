@@ -11,7 +11,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const time = dayjs().format("HH/MM/SS");
+const time = dayjs().format("HH/mm/ss");
 
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 let db;
@@ -22,9 +22,11 @@ mongoClient.connect().then(() => {
 const nameSchema = joi.object({ name: joi.string().min(1).required() });
 
 const messageSchema = joi.object({
+  from: joi.string().required(),
   to: joi.string().min(1).required(),
   text: joi.string().min(1).required(),
   type: joi.string().valid("message", "private_message").required(),
+  time: joi.string(),
 });
 
 app.post("/participants", async (req, res) => {
@@ -66,7 +68,7 @@ app.get("/participantes", async (req, res) => {
   try {
     const participants = await db.collection("participants").find().toArray();
     if (!participants) {
-      res.status(500);
+      res.status(404);
       return;
     }
   } catch (err) {
@@ -74,7 +76,39 @@ app.get("/participantes", async (req, res) => {
   }
 });
 
-app.post("/messages", (req, res) => {});
+app.post("/messages", async (req, res) => {
+  const { to, text, type } = req.body;
+  const { user } = req.headers;
+  try {
+    const mensagem = {
+      from: user,
+      to,
+      text,
+      type,
+      time: time,
+    };
+
+    const validation = messageSchema.validate(mensagem, { abortEarly: false });
+    if (validation.error) {
+      const errors = validation.error.details.map((d) => d.message);
+      res.status(422).send(errors);
+      return;
+    }
+    const nameExists = await db
+      .collection("participants")
+      .findOne({ name: user });
+    if (!nameExists) {
+      res.send(409);
+      return;
+    }
+
+    await db.collection("messages").insertOne(mensagem);
+
+    res.sendStatus(201);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 
 app.get("/messages", (req, res) => {});
 
