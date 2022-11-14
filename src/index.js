@@ -111,9 +111,20 @@ app.post("/messages", async (req, res) => {
 });
 
 app.get("/messages", async (req, res) => {
+  const limit = Number(req.query.limit);
+  const { user } = req.headers;
   try {
     const mensagens = await db.collection("messages").find({}).toArray();
-    res.send(mensagens);
+    const FiltroMensagens = mensagens.filter((mensagem) => {
+      const Publica = mensagem.type === "message";
+      const UserMsg =
+        mensagem.to === "Todos" ||
+        mensagem.to === user ||
+        mensagem.from === user;
+      return Publica || UserMsg;
+    });
+
+    res.send(FiltroMensagens.slice(-limit));
   } catch (err) {
     res.status(500).send(err.message);
   }
