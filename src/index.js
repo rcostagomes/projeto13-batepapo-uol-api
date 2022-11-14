@@ -110,7 +110,14 @@ app.post("/messages", async (req, res) => {
   }
 });
 
-app.get("/messages", (req, res) => {});
+app.get("/messages", async (req, res) => {
+  try {
+    const mensagens = await db.collection("messages").find({}).toArray();
+    res.send(mensagens);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 
 app.post("/status", (req, res) => {});
 
