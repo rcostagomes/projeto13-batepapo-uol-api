@@ -11,15 +11,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const time = dayjs().format("HH/mm/ss");
-
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 let db;
 mongoClient.connect().then(() => {
   db = mongoClient.db("batePapoUol");
 });
 
-const nameSchema = joi.object({ name: joi.string().min(1).required() });
+const nameSchema = joi.object({
+  name: joi.string().min(1).required(),
+  lastStatus: joi.number(),
+});
 
 const messageSchema = joi.object({
   from: joi.string().required(),
@@ -51,12 +52,12 @@ app.post("/participants", async (req, res) => {
     await db
       .collection("participants")
       .insertOne({ name: participante.name, lastStatus: Date.now() });
-    await db.collection("message").insertOne({
+    await db.collection("messages").insertOne({
       from: participante.name,
       to: "Todos",
       text: "entra na sala...",
       type: "status",
-      time: time,
+      time: dayjs().format("HH/mm/ss"),
     });
     res.sendStatus(201);
   } catch (err) {
@@ -85,20 +86,20 @@ app.post("/messages", async (req, res) => {
       to,
       text,
       type,
-      time: time,
+      time: dayjs().format("HH/mm/ss"),
     };
 
     const validation = messageSchema.validate(mensagem, { abortEarly: false });
     if (validation.error) {
       const errors = validation.error.details.map((d) => d.message);
-      res.status(422).send(errors);
+      res.sendStatus(422).send(errors);
       return;
     }
     const nameExists = await db
       .collection("participants")
       .findOne({ name: user });
     if (!nameExists) {
-      res.send(409);
+      res.sendStatus(409);
       return;
     }
 
@@ -106,7 +107,7 @@ app.post("/messages", async (req, res) => {
 
     res.sendStatus(201);
   } catch (err) {
-    res.status(500).send(err.message);
+    res.sendStatus(500).send(err.message);
   }
 });
 
@@ -126,11 +127,60 @@ app.get("/messages", async (req, res) => {
 
     res.send(FiltroMensagens.slice(-limit));
   } catch (err) {
+    res.sendStatus(500).send(err.message);
+  }
+});
+
+app.post("/status", async (req, res) => {
+  const { user } = req.headers;
+
+  try {
+    const usuarioExistente = await db
+      .collection("participants")
+      .findOne({ name: user });
+    if (!usuarioExistente) {
+      res.sendStatus(404);
+      return;
+    }
+
+    await db
+      .collection("participants")
+      .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
+
+    res.sendStatus(200);
+  } catch (err) {
     res.status(500).send(err.message);
   }
 });
 
-app.post("/status", (req, res) => {});
+setInterval(async () => {
+  const tempo = Date.now() - 10 * 1000;
+  console.log(tempo);
+  try {
+    const inativos = await db
+      .collection("participants")
+      .find({ lastStatus: { $lte: tempo } })
+      .toArray();
+    console.log(inativos);
+    if (inativos.length > 0) {
+      const msgInativo = inativos.map((i) => {
+        return {
+          from: i.name,
+          to: "Todos",
+          text: "sai da sala...",
+          type: "status",
+          time: dayjs().format("HH/mm/ss"),
+        };
+      });
+      await db.collection("messages").insertMany(msgInativo);
+      await db
+        .collection("participants")
+        .deleteMany({ lastStatus: { $lte: tempo } });
+    }
+  } catch (err) {
+    res.sendStatus(500).send(err.message);
+  }
+}, 15000);
 
 app.listen(5000, () => {
   console.log("Server running in port 5000");
